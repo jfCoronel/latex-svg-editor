@@ -1,0 +1,724 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Editor de ecuaciones LaTeX → SVG</title>
+
+  <!-- Tabler Icons -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
+
+  <style>
+    /* ── Reset & base ─────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:          #ffffff;
+      --bg-2:        #f5f5f3;
+      --bg-3:        #ebebea;
+      --text:        #1a1a1a;
+      --text-2:      #555550;
+      --text-3:      #888882;
+      --border:      rgba(0,0,0,0.12);
+      --border-2:    rgba(0,0,0,0.22);
+      --info-bg:     #e6f1fb;
+      --info-text:   #185fa5;
+      --info-border: #b5d4f4;
+      --ok:          #2a7a4b;
+      --err:         #a32d2d;
+      --radius-md:   8px;
+      --radius-lg:   12px;
+      --font-mono:   'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+      --font-sans:   system-ui, -apple-system, 'Segoe UI', sans-serif;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg:          #1c1c1a;
+        --bg-2:        #252523;
+        --bg-3:        #2e2e2c;
+        --text:        #ebebea;
+        --text-2:      #aaaaaa;
+        --text-3:      #666664;
+        --border:      rgba(255,255,255,0.12);
+        --border-2:    rgba(255,255,255,0.22);
+        --info-bg:     #0c2540;
+        --info-text:   #85b7eb;
+        --info-border: #185fa5;
+        --ok:          #5dca9a;
+        --err:         #f09595;
+      }
+    }
+
+    body {
+      font-family: var(--font-sans);
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── Header ───────────────────────────────────────────────── */
+    header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 14px 24px;
+      border-bottom: 0.5px solid var(--border);
+      background: var(--bg);
+    }
+
+    header h1 {
+      font-size: 16px;
+      font-weight: 500;
+      color: var(--text);
+    }
+
+    .badge {
+      font-size: 11px;
+      color: var(--text-3);
+      background: var(--bg-2);
+      border: 0.5px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 2px 8px;
+    }
+
+    /* ── Main layout ──────────────────────────────────────────── */
+    main {
+      flex: 1;
+      padding: 20px 24px;
+      max-width: 1100px;
+      width: 100%;
+      margin: 0 auto;
+    }
+
+    .panels {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+
+    @media (max-width: 640px) {
+      .panels { grid-template-columns: 1fr; }
+      main { padding: 14px 16px; }
+    }
+
+    .panel {
+      background: var(--bg);
+      border: 0.5px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 14px 16px;
+    }
+
+    .panel-label {
+      font-size: 11px;
+      color: var(--text-3);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      font-weight: 500;
+      margin-bottom: 8px;
+    }
+
+    /* ── LaTeX input ──────────────────────────────────────────── */
+    #latex-input {
+      width: 100%;
+      height: 180px;
+      font-family: var(--font-mono);
+      font-size: 13px;
+      line-height: 1.7;
+      resize: vertical;
+      background: var(--bg-2);
+      border: 0.5px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 10px 12px;
+      color: var(--text);
+      outline: none;
+      transition: border-color 0.15s;
+    }
+
+    #latex-input:focus {
+      border-color: var(--border-2);
+    }
+
+    /* ── Example buttons ──────────────────────────────────────── */
+    .examples-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 5px;
+      margin-top: 8px;
+    }
+
+    .ex-btn {
+      font-size: 11px;
+      padding: 3px 8px;
+      background: var(--bg-2);
+      border: 0.5px solid var(--border);
+      border-radius: var(--radius-md);
+      color: var(--text-2);
+      cursor: pointer;
+      font-family: var(--font-mono);
+      transition: all 0.1s;
+    }
+
+    .ex-btn:hover {
+      background: var(--bg-3);
+      color: var(--text);
+    }
+
+    /* ── Preview area ─────────────────────────────────────────── */
+    #preview-box {
+      min-height: 180px;
+      background: var(--bg-2);
+      border-radius: var(--radius-md);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+      overflow: hidden;
+    }
+
+    #preview-box svg {
+      max-width: 100%;
+      max-height: 220px;
+      height: auto;
+    }
+
+    .preview-placeholder {
+      font-size: 13px;
+      color: var(--text-3);
+      font-style: italic;
+    }
+
+    .preview-error {
+      font-size: 12px;
+      color: var(--err);
+      text-align: center;
+      line-height: 1.6;
+    }
+
+    .mj-loading {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      font-size: 13px;
+      color: var(--text-3);
+    }
+
+    /* ── Action buttons ───────────────────────────────────────── */
+    .actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-bottom: 8px;
+    }
+
+    .act-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 13px;
+      font-weight: 500;
+      padding: 8px 13px;
+      border-radius: var(--radius-md);
+      cursor: pointer;
+      border: 0.5px solid var(--border-2);
+      background: var(--bg);
+      color: var(--text);
+      white-space: nowrap;
+      transition: background 0.12s;
+      font-family: var(--font-sans);
+    }
+
+    .act-btn:hover { background: var(--bg-2); }
+    .act-btn:active { transform: scale(0.97); }
+
+    .act-btn.primary {
+      background: var(--info-bg);
+      color: var(--info-text);
+      border-color: var(--info-border);
+    }
+
+    .act-btn.primary:hover { opacity: 0.85; }
+
+    /* ── Status bar ───────────────────────────────────────────── */
+    #status {
+      font-size: 12px;
+      color: var(--text-3);
+      min-height: 18px;
+      margin-bottom: 10px;
+      transition: color 0.2s;
+    }
+
+    #status.ok  { color: var(--ok); }
+    #status.err { color: var(--err); }
+
+    /* ── Drop zone ────────────────────────────────────────────── */
+    .drop-zone {
+      border: 1.5px dashed var(--border-2);
+      border-radius: var(--radius-md);
+      padding: 16px;
+      text-align: center;
+      font-size: 12px;
+      color: var(--text-3);
+      cursor: pointer;
+      transition: background 0.15s, border-color 0.15s;
+      line-height: 1.7;
+      user-select: none;
+    }
+
+    .drop-zone:hover,
+    .drop-zone.drag-over {
+      background: var(--bg-2);
+      border-color: var(--border-2);
+    }
+
+    .drop-zone i {
+      font-size: 20px;
+      display: block;
+      margin-bottom: 4px;
+    }
+
+    /* ── Footer ───────────────────────────────────────────────── */
+    footer {
+      font-size: 11px;
+      color: var(--text-3);
+      text-align: center;
+      padding: 12px 24px;
+      border-top: 0.5px solid var(--border);
+    }
+
+    footer a {
+      color: var(--info-text);
+      text-decoration: none;
+    }
+
+    footer a:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+
+  <header>
+    <i class="ti ti-math-function" style="font-size:20px; color:#185fa5;" aria-hidden="true"></i>
+    <h1>Editor de ecuaciones LaTeX → SVG</h1>
+    <span class="badge">SVG + metadatos LaTeX</span>
+  </header>
+
+  <main>
+    <div class="panels">
+
+      <!-- Panel izquierdo: entrada LaTeX -->
+      <div class="panel">
+        <div class="panel-label">
+          Fuente LaTeX
+          <span style="font-weight:400; text-transform:none; letter-spacing:0; font-size:10px; margin-left:4px;">(Ctrl+Enter para renderizar)</span>
+        </div>
+        <textarea
+          id="latex-input"
+          spellcheck="false"
+          autocorrect="off"
+          autocapitalize="off"
+          placeholder="\int_0^\infty e^{-x^2}\,dx = \frac{\sqrt{\pi}}{2}"
+        ></textarea>
+        <div class="examples-row" id="examples-row"></div>
+      </div>
+
+      <!-- Panel derecho: vista previa -->
+      <div class="panel">
+        <div class="panel-label">Vista previa</div>
+        <div id="preview-box">
+          <div class="mj-loading" id="mj-loading">
+            <i class="ti ti-loader" aria-hidden="true"></i>
+            Cargando MathJax...
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /.panels -->
+
+    <!-- Barra de acciones -->
+    <div class="actions">
+      <button class="act-btn primary" id="btn-copy-svg">
+        <i class="ti ti-copy" aria-hidden="true"></i>
+        Copiar SVG
+      </button>
+      <button class="act-btn" id="btn-copy-png">
+        <i class="ti ti-photo" aria-hidden="true"></i>
+        Copiar PNG
+      </button>
+      <button class="act-btn" id="btn-download">
+        <i class="ti ti-download" aria-hidden="true"></i>
+        Descargar .svg
+      </button>
+      <label class="act-btn" style="cursor:pointer;" title="Cargar un SVG exportado para recuperar el LaTeX">
+        <i class="ti ti-upload" aria-hidden="true"></i>
+        Cargar SVG
+        <input type="file" accept=".svg,image/svg+xml" id="file-input" style="display:none">
+      </label>
+    </div>
+
+    <!-- Barra de estado -->
+    <div id="status" role="status" aria-live="polite"></div>
+
+    <!-- Zona de arrastrar SVG -->
+    <div class="drop-zone" id="drop-zone" role="button" tabindex="0"
+         aria-label="Arrastra un SVG aquí para recuperar el LaTeX">
+      <i class="ti ti-file-type-svg" aria-hidden="true"></i>
+      Arrastra un <strong>.svg</strong> exportado desde este editor para recuperar el LaTeX original
+    </div>
+  </main>
+
+  <footer>
+    Renderizado con <a href="https://www.mathjax.org/" target="_blank" rel="noopener">MathJax 3</a> ·
+    El LaTeX se guarda en <code>&lt;metadata&gt;</code> y <code>data-latex</code> dentro del SVG
+  </footer>
+
+  <!-- MathJax 3 config + carga -->
+  <script>
+    window.MathJax = {
+      tex: {
+        inlineMath:   [['$', '$']],
+        displayMath:  [['$$', '$$']],
+        // Añade aquí paquetes extra que necesites:
+        // packages: { '[+]': ['physics', 'boldsymbol'] }
+      },
+      svg: {
+        fontCache: 'local',   // SVG auto-contenido (sin deps externas)
+        scale: 1.1,
+      },
+      startup: { typeset: false }
+    };
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js" id="MathJax-script" async></script>
+
+  <script>
+    // ── Ejemplos predefinidos ──────────────────────────────────────
+    const EXAMPLES = [
+      { label: 'Integral gaussiana',   src: '\\int_0^\\infty e^{-x^2}\\,dx = \\dfrac{\\sqrt{\\pi}}{2}' },
+      { label: 'Identidad de Euler',   src: 'e^{i\\pi} + 1 = 0' },
+      { label: 'Maxwell',              src: '\\nabla \\times \\mathbf{B} = \\mu_0\\!\\left(\\mathbf{J} + \\varepsilon_0\\frac{\\partial \\mathbf{E}}{\\partial t}\\right)' },
+      { label: 'Schrödinger',          src: 'i\\hbar\\frac{\\partial}{\\partial t}\\Psi = -\\frac{\\hbar^2}{2m}\\nabla^2\\Psi + V\\Psi' },
+      { label: 'Fourier',              src: '\\hat{f}(\\xi) = \\int_{-\\infty}^{\\infty} f(x)\\,e^{-2\\pi i x\\xi}\\,dx' },
+      { label: 'COP bomba de calor',   src: 'COP_{HP} = \\frac{Q_H}{W_{comp}} = \\frac{T_H}{T_H - T_L}' },
+      { label: 'Transferencia calor',  src: 'Q = U A\\,\\Delta T_{lm} = U A\\,\\frac{\\Delta T_1 - \\Delta T_2}{\\ln(\\Delta T_1/\\Delta T_2)}' },
+      { label: 'Serie de Taylor',      src: 'f(x) = \\sum_{n=0}^{\\infty} \\frac{f^{(n)}(a)}{n!}(x-a)^n' },
+      { label: 'Binomio de Newton',    src: '(x+y)^n = \\sum_{k=0}^{n}\\binom{n}{k}x^{n-k}y^k' },
+    ];
+
+    // ── Referencias DOM ────────────────────────────────────────────
+    const inp        = document.getElementById('latex-input');
+    const previewBox = document.getElementById('preview-box');
+    const statusEl   = document.getElementById('status');
+    const examplesRow= document.getElementById('examples-row');
+    const dropZone   = document.getElementById('drop-zone');
+
+    // Estado de la aplicación
+    let currentSvgString = '';
+    let currentLatex     = '';
+    let mjReady          = false;
+
+    // ── Poblar ejemplos ────────────────────────────────────────────
+    EXAMPLES.forEach(ex => {
+      const btn = document.createElement('button');
+      btn.className   = 'ex-btn';
+      btn.textContent = ex.label;
+      btn.title       = ex.src;
+      btn.addEventListener('click', () => { inp.value = ex.src; renderLatex(); });
+      examplesRow.appendChild(btn);
+    });
+
+    // ── Utilidades ─────────────────────────────────────────────────
+    function setStatus(msg, type = '') {
+      statusEl.textContent = msg;
+      statusEl.className   = type; // 'ok' | 'err' | ''
+    }
+
+    function escapeXml(str) {
+      return str
+        .replace(/&/g,  '&amp;')
+        .replace(/</g,  '&lt;')
+        .replace(/>/g,  '&gt;')
+        .replace(/"/g,  '&quot;')
+        .replace(/'/g,  '&apos;');
+    }
+
+    function unescapeXml(str) {
+      return str
+        .replace(/&amp;/g,  '&')
+        .replace(/&lt;/g,   '<')
+        .replace(/&gt;/g,   '>')
+        .replace(/&quot;/g, '"')
+        .replace(/&apos;/g, "'");
+    }
+
+    // ── Construir SVG exportable con metadatos ─────────────────────
+    function buildExportSvg(svgEl, latex) {
+      const ns    = 'http://www.w3.org/2000/svg';
+      const clone = svgEl.cloneNode(true);
+
+      // Namespaces estándar
+      clone.setAttribute('xmlns',       ns);
+      clone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
+
+      // data-latex: atributo de recuperación rápida
+      clone.setAttribute('data-latex', escapeXml(latex));
+
+      // <title> – accesibilidad + fallback
+      const title = document.createElementNS(ns, 'title');
+      title.textContent = latex;
+
+      // <desc> – descripción legible
+      const desc = document.createElementNS(ns, 'desc');
+      desc.textContent = 'Ecuación LaTeX generada con latex-svg-editor';
+
+      // <metadata> – fuente LaTeX en XML estructurado
+      const meta = document.createElementNS(ns, 'metadata');
+      meta.innerHTML =
+        '<latex-source xmlns="https://schemas.latexeditor.app/1.0">' +
+        escapeXml(latex) +
+        '</latex-source>';
+
+      // Insertar al principio del SVG
+      clone.insertBefore(meta,  clone.firstChild);
+      clone.insertBefore(desc,  clone.firstChild);
+      clone.insertBefore(title, clone.firstChild);
+
+      return new XMLSerializer().serializeToString(clone);
+    }
+
+    // ── Renderizar LaTeX → SVG ─────────────────────────────────────
+    function renderLatex() {
+      const latex = inp.value.trim();
+
+      if (!latex) {
+        previewBox.innerHTML = '<span class="preview-placeholder">Escribe una ecuación...</span>';
+        currentSvgString = '';
+        currentLatex     = '';
+        setStatus('');
+        return;
+      }
+
+      if (!mjReady) {
+        setStatus('MathJax aún no está listo...', '');
+        return;
+      }
+
+      try {
+        // Renderizar con MathJax
+        const container = MathJax.tex2svg(latex, { display: true });
+
+        // Detectar errores de sintaxis LaTeX (MathJax los muestra como nodos merror)
+        if (container.querySelector('[data-mml-node="merror"]')) {
+          throw new Error('Sintaxis LaTeX inválida — revisa la expresión');
+        }
+
+        const svgEl = container.querySelector('svg');
+        if (!svgEl) throw new Error('MathJax no generó ningún SVG');
+
+        // Guardar estado
+        currentLatex     = latex;
+        currentSvgString = buildExportSvg(svgEl, latex);
+
+        // Mostrar en preview
+        previewBox.innerHTML = '';
+        const preview = svgEl.cloneNode(true);
+        preview.style.cssText = 'max-width:100%; max-height:220px; height:auto;';
+        previewBox.appendChild(preview);
+
+        setStatus(`✓ Renderizado · ${latex.length} chars · SVG listo para exportar`, 'ok');
+
+      } catch (e) {
+        previewBox.innerHTML = `<span class="preview-error"><i class="ti ti-alert-triangle"></i><br>${e.message}</span>`;
+        currentSvgString = '';
+        setStatus(e.message, 'err');
+      }
+    }
+
+    // Renderizado con debounce al escribir
+    let debounceTimer;
+    inp.addEventListener('input', () => {
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(renderLatex, 450);
+    });
+
+    // Ctrl+Enter fuerza renderizado inmediato
+    inp.addEventListener('keydown', e => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+        e.preventDefault();
+        clearTimeout(debounceTimer);
+        renderLatex();
+      }
+    });
+
+    // ── Copiar SVG al portapapeles ─────────────────────────────────
+    document.getElementById('btn-copy-svg').addEventListener('click', async () => {
+      if (!currentSvgString) { setStatus('Nada que copiar — escribe una ecuación primero', 'err'); return; }
+
+      try {
+        // Intento 1: image/svg+xml (LibreOffice, Inkscape, Firefox)
+        const blob = new Blob([currentSvgString], { type: 'image/svg+xml' });
+        await navigator.clipboard.write([new ClipboardItem({ 'image/svg+xml': blob })]);
+        setStatus('✓ SVG copiado al portapapeles (con metadatos LaTeX) — pega en LibreOffice/Inkscape', 'ok');
+
+      } catch {
+        try {
+          // Fallback: texto plano (el usuario puede pegar en un .txt y renombrarlo a .svg)
+          await navigator.clipboard.writeText(currentSvgString);
+          setStatus(
+            'SVG copiado como texto. Pégalo en un fichero .txt, renómbralo a .svg e insértalo con "Insertar → Imagen".',
+            ''
+          );
+        } catch {
+          setStatus('No se pudo acceder al portapapeles. Usa "Descargar .svg".', 'err');
+        }
+      }
+    });
+
+    // ── Copiar PNG al portapapeles ─────────────────────────────────
+    document.getElementById('btn-copy-png').addEventListener('click', async () => {
+      if (!currentSvgString) { setStatus('Nada que copiar', 'err'); return; }
+
+      try {
+        // Convertir SVG → Blob URL → Image → Canvas → PNG Blob
+        const svgBlob = new Blob([currentSvgString], { type: 'image/svg+xml' });
+        const url     = URL.createObjectURL(svgBlob);
+        const img     = new Image();
+        img.src       = url;
+        await new Promise((res, rej) => { img.onload = res; img.onerror = rej; });
+
+        const scale  = 3; // alta resolución para pantallas retina
+        const canvas = document.createElement('canvas');
+        canvas.width  = img.naturalWidth  * scale;
+        canvas.height = img.naturalHeight * scale;
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = 'white';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.scale(scale, scale);
+        ctx.drawImage(img, 0, 0);
+        URL.revokeObjectURL(url);
+
+        canvas.toBlob(async pngBlob => {
+          try {
+            await navigator.clipboard.write([new ClipboardItem({ 'image/png': pngBlob })]);
+            setStatus('✓ PNG copiado (fondo blanco, 3× resolución) — pégalo en cualquier aplicación', 'ok');
+          } catch {
+            setStatus('No se pudo copiar el PNG. Prueba con otro navegador.', 'err');
+          }
+        }, 'image/png');
+
+      } catch (e) {
+        setStatus('Error al generar PNG: ' + e.message, 'err');
+      }
+    });
+
+    // ── Descargar SVG ──────────────────────────────────────────────
+    document.getElementById('btn-download').addEventListener('click', () => {
+      if (!currentSvgString) { setStatus('Nada que descargar', 'err'); return; }
+
+      const safeName = currentLatex
+        .replace(/[^a-zA-Z0-9]/g, '_')
+        .substring(0, 30)
+        .replace(/_+$/g, '') || 'ecuacion';
+
+      const blob = new Blob([currentSvgString], { type: 'image/svg+xml' });
+      const a    = document.createElement('a');
+      a.href     = URL.createObjectURL(blob);
+      a.download = `eq_${safeName}.svg`;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+      setStatus('✓ Descargado: eq_' + safeName + '.svg (con metadatos LaTeX)', 'ok');
+    });
+
+    // ── Cargar SVG y recuperar LaTeX ───────────────────────────────
+    function loadSvgAndRecover(file) {
+      if (!file) return;
+
+      if (!file.name.toLowerCase().endsWith('.svg') && file.type !== 'image/svg+xml') {
+        setStatus('Selecciona un archivo .svg', 'err');
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = e => {
+        try {
+          const parser = new DOMParser();
+          const doc    = parser.parseFromString(e.target.result, 'image/svg+xml');
+          let latex    = null;
+
+          // Método 1: atributo data-latex (más rápido)
+          const svgEl = doc.querySelector('svg');
+          if (svgEl) {
+            latex = svgEl.getAttribute('data-latex');
+          }
+
+          // Método 2: elemento <latex-source> dentro de <metadata>
+          if (!latex) {
+            const lsEl = doc.querySelector('latex-source');
+            if (lsEl) latex = lsEl.textContent;
+          }
+
+          // Método 3: <title> como fallback (si parece LaTeX)
+          if (!latex) {
+            const titleEl = doc.querySelector('title');
+            if (titleEl && titleEl.textContent.includes('\\')) {
+              latex = titleEl.textContent;
+            }
+          }
+
+          if (latex) {
+            latex = unescapeXml(latex.trim());
+            inp.value = latex;
+            renderLatex();
+            setStatus('✓ LaTeX recuperado del SVG: ' + latex.substring(0, 60) + (latex.length > 60 ? '…' : ''), 'ok');
+          } else {
+            setStatus('Este SVG no contiene metadatos LaTeX (no fue generado con este editor).', 'err');
+          }
+
+        } catch (err) {
+          setStatus('Error al analizar el SVG: ' + err.message, 'err');
+        }
+      };
+      reader.onerror = () => setStatus('Error al leer el archivo.', 'err');
+      reader.readAsText(file);
+    }
+
+    document.getElementById('file-input').addEventListener('change', e => {
+      loadSvgAndRecover(e.target.files[0]);
+      e.target.value = ''; // reset para permitir volver a cargar el mismo fichero
+    });
+
+    // ── Drag & drop ────────────────────────────────────────────────
+    dropZone.addEventListener('dragover',  e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+    dropZone.addEventListener('dragleave', ()  => dropZone.classList.remove('drag-over'));
+    dropZone.addEventListener('drop', e => {
+      e.preventDefault();
+      dropZone.classList.remove('drag-over');
+      loadSvgAndRecover(e.dataTransfer.files[0]);
+    });
+    dropZone.addEventListener('click', () => document.getElementById('file-input').click());
+    dropZone.addEventListener('keydown', e => {
+      if (e.key === 'Enter' || e.key === ' ') document.getElementById('file-input').click();
+    });
+
+    // ── Esperar a MathJax y arrancar ───────────────────────────────
+    (function waitForMathJax() {
+      if (window.MathJax && MathJax.startup && MathJax.startup.promise) {
+        MathJax.startup.promise
+          .then(() => {
+            mjReady = true;
+            document.getElementById('mj-loading')?.remove();
+            previewBox.innerHTML = '<span class="preview-placeholder">Escribe una ecuación...</span>';
+            // Cargar primer ejemplo
+            inp.value = EXAMPLES[0].src;
+            renderLatex();
+          })
+          .catch(err => setStatus('Error al iniciar MathJax: ' + err.message, 'err'));
+      } else {
+        setTimeout(waitForMathJax, 100);
+      }
+    })();
+  </script>
+
+</body>
+</html>
